@@ -14,7 +14,7 @@ export default function Footer() {
           </a>
         </div>
         <div className="text-center text-xs text-muted-foreground mb-12 text-[hsl(var(--stone))]">
-          &copy; 2026 Wittgenstein. Harness-first multimodal infrastructure. Apache-2.0.
+          &copy; 2026 Wittgenstein. The modality harness for text-first models. Apache-2.0.
         </div>
         <div className="text-center">
           <span
