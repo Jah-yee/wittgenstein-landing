@@ -2,6 +2,9 @@ import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 
+/** Lower than original 550 — large perf win on integrated GPUs & mobile. */
+const RAYMARCH_STEPS = 280;
+
 const vertexShader = `
   varying vec2 vUv;
   void main() {
@@ -16,7 +19,7 @@ const fragmentShader = `
   uniform mat4 u_cameraWorldMatrix;
   uniform mat4 u_cameraProjectionMatrixInverse;
   varying vec2 vUv;
-  #define STEPS 550
+  #define STEPS ${RAYMARCH_STEPS}
   #define RS 0.4
   #define G_STRENGTH(r) (14.0 * exp(-r * 0.05))
   #define DISK_INNER 1.8
@@ -210,6 +213,15 @@ type PipelineGargantuaProps = {
   className?: string;
 };
 
+function getPixelRatioCap(): number {
+  if (typeof window === 'undefined') return 1;
+  const dpr = window.devicePixelRatio || 1;
+  const coarse = window.matchMedia?.('(pointer: coarse)').matches ?? false;
+  const saveData = (navigator as Navigator & { connection?: { saveData?: boolean } }).connection?.saveData;
+  if (saveData || coarse) return Math.min(dpr, 1);
+  return Math.min(dpr, 1.5);
+}
+
 export default function PipelineGargantua({ className }: PipelineGargantuaProps) {
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -217,12 +229,23 @@ export default function PipelineGargantua({ className }: PipelineGargantuaProps)
     const container = containerRef.current;
     if (!container) return;
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+    const renderer = new THREE.WebGLRenderer({
+      antialias: false,
+      alpha: false,
+      powerPreference: 'low-power',
+      stencil: false,
+      depth: false,
+    });
+    renderer.setPixelRatio(getPixelRatioCap());
     renderer.domElement.style.display = 'block';
     renderer.domElement.style.width = '100%';
     renderer.domElement.style.height = '100%';
+    renderer.domElement.style.touchAction = 'none';
+    renderer.setClearColor(0x000000, 1);
     container.appendChild(renderer.domElement);
+    renderer.clear();
 
     const camera = new THREE.PerspectiveCamera(35, 1, 0.1, 300);
     camera.position.set(0, 12, 65);
@@ -250,13 +273,15 @@ export default function PipelineGargantua({ className }: PipelineGargantuaProps)
     postScene.add(mesh);
     const orthoCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
 
-    const clock = new THREE.Clock();
+    const clock = new THREE.Clock(false);
     let animationId = 0;
+    let running = false;
 
     const setSize = () => {
       const w = container.clientWidth;
       const h = container.clientHeight;
       if (w < 2 || h < 2) return;
+      renderer.setPixelRatio(getPixelRatioCap());
       renderer.setSize(w, h, false);
       camera.aspect = w / h;
       camera.updateProjectionMatrix();
@@ -267,8 +292,7 @@ export default function PipelineGargantua({ className }: PipelineGargantuaProps)
     const ro = new ResizeObserver(() => setSize());
     ro.observe(container);
 
-    const animate = () => {
-      animationId = requestAnimationFrame(animate);
+    const renderFrame = () => {
       controls.update();
       uniforms.u_time.value = clock.getElapsedTime();
       camera.updateMatrixWorld();
@@ -276,11 +300,78 @@ export default function PipelineGargantua({ className }: PipelineGargantuaProps)
       uniforms.u_cameraProjectionMatrixInverse.value.copy(camera.projectionMatrixInverse);
       renderer.render(postScene, orthoCamera);
     };
-    animate();
+
+    const loop = () => {
+      if (!running || document.visibilityState === 'hidden') {
+        animationId = 0;
+        return;
+      }
+      renderFrame();
+      animationId = requestAnimationFrame(loop);
+    };
+
+    const start = () => {
+      if (running) return;
+      if (reducedMotion.matches) return;
+      running = true;
+      clock.start();
+      if (animationId) cancelAnimationFrame(animationId);
+      animationId = requestAnimationFrame(loop);
+    };
+
+    const stop = () => {
+      if (!running) return;
+      running = false;
+      clock.stop();
+      cancelAnimationFrame(animationId);
+      animationId = 0;
+      renderer.setClearColor(0x000000, 1);
+      renderer.clear();
+    };
+
+    const io = new IntersectionObserver(
+      (entries) => {
+        const vis = entries.some((e) => e.isIntersecting && e.intersectionRatio > 0.02);
+        if (vis) start();
+        else stop();
+      },
+      {
+        root: null,
+        rootMargin: '0px',
+        threshold: [0, 0.02, 0.1, 0.25],
+      },
+    );
+    io.observe(container);
+
+    requestAnimationFrame(() => {
+      const r = container.getBoundingClientRect();
+      const vh = window.innerHeight || 0;
+      const inView = r.width > 0 && r.bottom > 0 && r.top < vh && r.height > 0;
+      if (inView && !reducedMotion.matches) start();
+    });
+
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') {
+        stop();
+        return;
+      }
+      const r = container.getBoundingClientRect();
+      const vh = window.innerHeight || 0;
+      if (r.width > 0 && r.bottom > 0 && r.top < vh && !reducedMotion.matches) start();
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+
+    const onMotionChange = () => {
+      if (reducedMotion.matches) stop();
+    };
+    reducedMotion.addEventListener('change', onMotionChange);
 
     return () => {
-      cancelAnimationFrame(animationId);
+      stop();
+      io.disconnect();
       ro.disconnect();
+      document.removeEventListener('visibilitychange', onVisibility);
+      reducedMotion.removeEventListener('change', onMotionChange);
       controls.dispose();
       geometry.dispose();
       material.dispose();
@@ -295,6 +386,7 @@ export default function PipelineGargantua({ className }: PipelineGargantuaProps)
     <div
       className={className}
       ref={containerRef}
+      style={{ contain: 'layout paint', isolation: 'isolate' }}
       role="img"
       aria-label="Ray-marched accretion disk visualization — drag to orbit the camera"
     />

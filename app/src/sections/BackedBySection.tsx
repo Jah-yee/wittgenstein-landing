@@ -1,7 +1,25 @@
 const partners = [
-  { id: 'typed-contracts', name: 'Typed contracts' },
-  { id: 'artifact-spine', name: 'Artifact spine' },
-  { id: 'frozen-decoders', name: 'Frozen decoders' },
+  {
+    id: 'hyperframes',
+    name: 'HyperFrames',
+    href: 'https://github.com/heygen-com/hyperframes',
+    logo: '/logos/hyperframes.png',
+    logoAlt: 'HeyGen HyperFrames',
+  },
+  {
+    id: 'ai-hacker-house',
+    name: 'AI Hacker House',
+    href: 'https://crossingpodcast.com',
+    logo: '/logos/crossing-podcast.png',
+    logoAlt: 'AI Hacker House',
+  },
+  {
+    id: 'effector',
+    name: 'Effector',
+    href: 'https://effector.wtf/',
+    logo: '/logos/effector.png',
+    logoAlt: 'Effector',
+  },
 ] as const;
 
 export default function BackedBySection() {
@@ -12,15 +30,26 @@ export default function BackedBySection() {
       </p>
       <div className="max-w-4xl mx-auto flex flex-wrap items-start justify-center gap-12 md:gap-16">
         {partners.map((p) => (
-          <div key={p.id} className="flex flex-col items-center gap-3 w-[9.5rem]">
-            <div
-              className="flex h-14 w-full max-w-[11rem] items-center justify-center rounded-lg border border-dashed border-border bg-muted/60 text-[0.65rem] font-mono uppercase tracking-wider text-muted-foreground"
-              aria-hidden
-            >
-              Logo
-            </div>
-            <span className="text-center text-sm font-medium text-secondary-foreground">{p.name}</span>
-          </div>
+          <a
+            key={p.id}
+            href={p.href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="group flex flex-col items-center gap-3 w-[10.5rem] rounded-lg outline-none transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card"
+          >
+            <span className="relative flex h-16 w-full max-w-[12rem] items-center justify-center px-2">
+              <img
+                src={p.logo}
+                alt={p.logoAlt}
+                className="max-h-14 w-auto max-w-full object-contain"
+                loading="lazy"
+                decoding="async"
+              />
+            </span>
+            <span className="text-center text-sm font-medium text-secondary-foreground underline-offset-2 group-hover:underline">
+              {p.name}
+            </span>
+          </a>
         ))}
       </div>
     </section>
