@@ -1,0 +1,5 @@
+.DS_Store
+
+# Local reference HTML only (Vite app lives in app/; do not ignore app/index.html)
+/index.html
+/preview (1).html

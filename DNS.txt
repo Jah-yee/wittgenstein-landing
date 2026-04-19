@@ -1,0 +1,7 @@
+Domain: wittgenstein.wtf
+
+At your registrar / Spaceship DNS, set nameservers to:
+  launch1.spaceship.net
+  launch2.spaceship.net
+
+Then manage DNS records (A/AAAA/CNAME) in the Spaceship panel for wittgenstein.wtf.
